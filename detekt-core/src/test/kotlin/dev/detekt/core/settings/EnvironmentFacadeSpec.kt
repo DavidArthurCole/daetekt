@@ -3,9 +3,8 @@ package dev.detekt.core.settings
 import dev.detekt.core.ProcessingSettings
 import dev.detekt.core.createProcessingSettings
 import org.assertj.core.api.Assertions.assertThat
-import org.jetbrains.kotlin.analysis.api.analyze
-import org.jetbrains.kotlin.analysis.api.components.KaDiagnosticCheckerFilter
 import org.jetbrains.kotlin.analysis.api.diagnostics.KaSeverity
+import org.jetbrains.kotlin.analysis.api.session.analyze
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.io.TempDir
 import java.io.ByteArrayOutputStream
@@ -15,6 +14,9 @@ import java.util.jar.JarEntry
 import java.util.jar.JarOutputStream
 import kotlin.io.path.outputStream
 import kotlin.io.path.writeText
+import org.jetbrains.kotlin.analysis.api.KaExperimentalApi
+import org.jetbrains.kotlin.analysis.api.diagnostics.KaDiagnosticCheckerKind
+import org.jetbrains.kotlin.analysis.api.diagnostics.diagnostics
 
 class EnvironmentFacadeSpec {
 
@@ -82,10 +84,11 @@ private const val KEEPALIVE = "kotlin.environment.keepalive"
 private fun compilerErrors(source: Path, jar: Path): List<String> =
     createProcessingSettings(source) { compiler { classpath = listOf(jar) } }.use(::compilerErrors)
 
+@OptIn(KaExperimentalApi::class)
 private fun compilerErrors(settings: ProcessingSettings): List<String> =
     settings.ktFiles.flatMap { file ->
         analyze(file) {
-            file.collectDiagnostics(KaDiagnosticCheckerFilter.ONLY_COMMON_CHECKERS)
+            file.diagnostics().withCheckers(KaDiagnosticCheckerKind.COMMON)
                 .filter { it.severity == KaSeverity.ERROR }
                 .map { it.defaultMessage }
         }

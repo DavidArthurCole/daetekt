@@ -17,7 +17,9 @@ import dev.detekt.psi.isExpect
 import org.jetbrains.kotlin.analysis.api.KaContextParameterApi
 import org.jetbrains.kotlin.analysis.api.KaExperimentalApi
 import org.jetbrains.kotlin.analysis.api.KaSession
-import org.jetbrains.kotlin.analysis.api.analyze
+import org.jetbrains.kotlin.analysis.api.expressions.expressionType
+import org.jetbrains.kotlin.analysis.api.resolution.resolveSuccessfulSymbol
+import org.jetbrains.kotlin.analysis.api.session.analyze
 import org.jetbrains.kotlin.analysis.api.symbols.KaConstructorSymbol
 import org.jetbrains.kotlin.analysis.api.symbols.KaPropertySymbol
 import org.jetbrains.kotlin.analysis.api.symbols.KaSymbol
@@ -167,7 +169,7 @@ private class UnusedPrivatePropertyVisitor(private val allowedNames: Regex) : De
         analyze(expression) {
             @OptIn(KaExperimentalApi::class)
             val references = when (expression) {
-                is KtNameReferenceExpression -> listOfNotNull(expression.resolveSymbol())
+                is KtNameReferenceExpression -> listOfNotNull(expression.resolveSuccessfulSymbol())
 
                 is KtCallExpression -> expression.getChildrenOfType<KtValueArgumentList>()
                     .flatMap { it.arguments }
@@ -178,7 +180,7 @@ private class UnusedPrivatePropertyVisitor(private val allowedNames: Regex) : De
 
             // The analysis API sometimes fails to resolve a reference to a private property declared in an
             // `actual` class that has a same-named `expect` declaration in the same file (KMP). In that case
-            // `resolveSymbol()` returns null and the property would be wrongly reported as unused, so fall back
+            // `resolveSuccessfulSymbol()` returns null and the property would be wrongly reported as unused, so fall back
             // to resolving by name against the declarations in the enclosing classes.
             val fallback = if (references.isEmpty() && expression is KtNameReferenceExpression) {
                 expression.resolveToPropertyByName()

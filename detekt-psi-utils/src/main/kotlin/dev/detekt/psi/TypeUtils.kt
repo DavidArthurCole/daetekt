@@ -1,9 +1,14 @@
 package dev.detekt.psi
 
 import org.jetbrains.kotlin.analysis.api.KaExperimentalApi
-import org.jetbrains.kotlin.analysis.api.analyze
-import org.jetbrains.kotlin.analysis.api.components.KaDiagnosticCheckerFilter
+import org.jetbrains.kotlin.analysis.api.diagnostics.KaDiagnosticCheckerKind
+import org.jetbrains.kotlin.analysis.api.diagnostics.diagnostics
+import org.jetbrains.kotlin.analysis.api.expressions.expressionType
 import org.jetbrains.kotlin.analysis.api.fir.diagnostics.KaFirDiagnostic
+import org.jetbrains.kotlin.analysis.api.fir.diagnostics.KaUnstableDiagnosticApi
+import org.jetbrains.kotlin.analysis.api.session.analyze
+import org.jetbrains.kotlin.analysis.api.types.hasFlexibleNullability
+import org.jetbrains.kotlin.analysis.api.types.isNullable
 import org.jetbrains.kotlin.psi.KtExpression
 import org.jetbrains.kotlin.psi.KtSafeQualifiedExpression
 
@@ -20,11 +25,11 @@ import org.jetbrains.kotlin.psi.KtSafeQualifiedExpression
  * [shouldConsiderPlatformTypeAsNullable] determines the behaviour of platform type. Passing true considers
  * the platform type as nullable otherwise it is not considered nullable in case of false
  */
-@OptIn(KaExperimentalApi::class)
+@OptIn(KaExperimentalApi::class, KaUnstableDiagnosticApi::class)
 fun KtExpression.isNullable(shouldConsiderPlatformTypeAsNullable: Boolean): Boolean {
     if (this is KtSafeQualifiedExpression) {
         analyze(this) {
-            return directDiagnostics(KaDiagnosticCheckerFilter.ONLY_COMMON_CHECKERS)
+            return diagnostics().directOnly(true).withCheckers(KaDiagnosticCheckerKind.COMMON)
                 .none { it is KaFirDiagnostic.UnnecessarySafeCall }
         }
     }

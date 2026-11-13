@@ -84,9 +84,10 @@ class UseContextSensitiveResolutionSpec(private val env: KotlinEnvironmentContai
             )
 
         @Test
-        fun `does not report sealed object in an argument branch`() =
-            assertNotReported(
+        fun `reports sealed object in an argument branch`() =
+            assertReported(
                 "fun foo(set: Boolean) = takesResponse(if (set) Response.Success(1) else Response.Empty)",
+                "Response.Empty" to "Empty",
             )
 
         @Test
@@ -115,8 +116,12 @@ class UseContextSensitiveResolutionSpec(private val env: KotlinEnvironmentContai
             )
 
         @Test
-        fun `does not report a companion property in an argument branch`() =
-            assertNotReported("fun foo(set: Boolean) = takesColor(if (set) Color.Red else Color.Green)")
+        fun `reports a companion property in an argument branch`() =
+            assertReported(
+                "fun foo(set: Boolean) = takesColor(if (set) Color.Red else Color.Green)",
+                "Color.Red" to "Red",
+                "Color.Green" to "Green",
+            )
 
         @Test
         fun `does not report when the argument decides the type`() =
@@ -135,10 +140,19 @@ class UseContextSensitiveResolutionSpec(private val env: KotlinEnvironmentContai
             assertReported("fun foo(role: Role?) = listOf(Role.Admin, role)", "Role.Admin" to "Admin")
 
         @Test
-        fun `does not report when another argument decides a subtype`() =
-            assertNotReported(
+        fun `reports sealed object when another argument decides a subtype`() =
+            assertReported(
                 "fun foo(failure: State.Failure) = listOf(State.Loading, failure)",
+                "State.Loading" to "Loading",
             )
+
+        @Test
+        fun `reports enum entry when only one other argument has its type`() =
+            assertReported("fun foo() = listOf(1, makeRole(), Role.Admin)", "Role.Admin" to "Admin")
+
+        @Test
+        fun `does not report when the other argument has another type`() =
+            assertNotReported("fun foo() = listOf(1, Role.Admin)", "Role.Admin" to "Admin")
 
         @Test
         fun `does not report when the other argument is a branch of qualified names`() =
@@ -154,33 +168,56 @@ class UseContextSensitiveResolutionSpec(private val env: KotlinEnvironmentContai
             assertNotReported("fun foo() = Assert(Role.Admin)", "Role.Admin" to "Admin")
 
         @Test
-        fun `does not report when overloads disagree on the type`() =
-            assertNotReported("fun foo() = overloaded(Role.Admin)")
+        fun `reports when only one overload's type has the name`() =
+            assertReported("fun foo() = overloaded(Role.Admin)", "Role.Admin" to "Admin")
+
+        @Test
+        fun `does not report when two overloads' types have the name`() =
+            assertNotReported(
+                """
+                fun pick(state: State) = state
+                fun pick(progress: Progress) = progress
+
+                fun foo() = pick(State.Loading)
+                """.trimIndent(),
+                "State.Loading" to "Loading",
+            )
+
+        @Test
+        fun `does not report a branch when overloads disagree on the type`() =
+            assertNotReported(
+                "fun foo(set: Boolean) = overloaded(if (set) Role.Admin else Role.Basic)",
+                "Role.Admin" to "Admin",
+                "Role.Basic" to "Basic",
+                together = true,
+            )
 
         @Test
         fun `reports a named argument that only one overload has`() =
             assertReported("fun foo() = overloaded(role = Role.Admin)", "Role.Admin" to "Admin")
 
         @Test
-        fun `does not report a positional argument when an overload takes another type first`() =
-            assertNotReported(
+        fun `reports a positional argument when an overload takes another type first`() =
+            assertReported(
                 """
                 fun choose(value: Role, count: Int) = value
                 fun choose(value: String, count: Int) = value
 
                 fun foo() = choose(Role.Admin, 1)
                 """.trimIndent(),
+                "Role.Admin" to "Admin",
             )
 
         @Test
-        fun `does not report a named argument when an overload has the same parameter with another type`() =
-            assertNotReported(
+        fun `reports a named argument when an overload has the same parameter with another type`() =
+            assertReported(
                 """
                 fun choose(value: Role, count: Int) = value
                 fun choose(value: String, count: Int) = value
 
                 fun foo() = choose(value = Role.Admin, count = 1)
                 """.trimIndent(),
+                "Role.Admin" to "Admin",
             )
 
         @Test
@@ -307,9 +344,22 @@ class UseContextSensitiveResolutionSpec(private val env: KotlinEnvironmentContai
             assertNotReported("fun foo(color: Color) = Color.Red + color", "Color.Red" to "Red")
 
         @Test
-        fun `does not report a compound assignment`() =
-            assertNotReported(
+        fun `reports a compound assignment`() =
+            assertReported(
                 "fun foo(roles: MutableList<Role>) { roles += Role.Admin }",
+                "Role.Admin" to "Admin",
+            )
+
+        @Test
+        fun `reports a compound assignment to a variable`() =
+            assertReported(
+                """
+                fun foo() {
+                    var roles = listOf(makeRole())
+                    roles += Role.Admin
+                }
+                """.trimIndent(),
+                "Role.Admin" to "Admin",
             )
 
         @Test
@@ -325,15 +375,17 @@ class UseContextSensitiveResolutionSpec(private val env: KotlinEnvironmentContai
             assertNotReported("fun foo(any: Any?) = any ?: Role.Admin", "Role.Admin" to "Admin")
 
         @Test
-        fun `does not report an elvis operand that is a sibling of the left side's sealed subtype`() =
-            assertNotReported(
+        fun `reports an elvis operand that is a sibling of the left side's sealed subtype`() =
+            assertReported(
                 "fun foo(failure: State.Failure?) = failure ?: State.Loading",
+                "State.Loading" to "Loading",
             )
 
         @Test
-        fun `does not report an elvis operand that is a sibling of the left side's sealed subtype in an argument`() =
-            assertNotReported(
+        fun `reports an elvis operand that is a sibling of the left side's sealed subtype in an argument`() =
+            assertReported(
                 "fun foo(reason: String?) = takesState(reason?.let(State::Failure) ?: State.Loading)",
+                "State.Loading" to "Loading",
             )
     }
 
@@ -700,15 +752,18 @@ class UseContextSensitiveResolutionSpec(private val env: KotlinEnvironmentContai
             assertNotReported("""fun foo() = listOf(State.Loading, State.Failure("x"))""")
 
         @Test
-        fun `does not report when one entry is shadowed`() =
-            assertNotReported(
+        fun `reports when one entry has the same name as a class`() =
+            assertReported(
                 "fun foo() = listOf(Method.Password, Method.Header)",
+                "listOf(Method.Password, Method.Header)" to "listOf<Method>(Password, Header)",
+                reason = TYPE_ARGUMENT,
             )
 
         @Test
-        fun `does not report when the expected type widens the collection`() =
-            assertNotReported(
+        fun `reports all but the first entry when the expected type widens the collection`() =
+            assertReported(
                 "val roles: MutableList<Any> = mutableListOf(Role.Admin, Role.Basic)",
+                "Role.Basic" to "Basic",
             )
 
         @Test
@@ -720,8 +775,8 @@ class UseContextSensitiveResolutionSpec(private val env: KotlinEnvironmentContai
             )
 
         @Test
-        fun `does not report sealed objects of a generic type that decide a collection's type`() =
-            assertNotReported(
+        fun `reports all but the first sealed object of a generic type that decide a collection's type`() =
+            assertReported(
                 """
                 sealed interface Reply<out T> {
                     data object None : Reply<Nothing>
@@ -730,6 +785,7 @@ class UseContextSensitiveResolutionSpec(private val env: KotlinEnvironmentContai
 
                 fun foo() = listOf(Reply.None, Reply.Gone)
                 """.trimIndent(),
+                "Reply.Gone" to "Gone",
             )
 
         @Test
@@ -773,8 +829,21 @@ class UseContextSensitiveResolutionSpec(private val env: KotlinEnvironmentContai
             )
 
         @Test
-        fun `does not report an entry shadowed by a class`() =
-            assertNotReported("fun foo() = takesMethod(Method.Password)")
+        fun `reports an entry with the same name as a class`() =
+            assertReported("fun foo() = takesMethod(Method.Password)", "Method.Password" to "Password")
+
+        @Test
+        fun `does not report an entry shadowed by a class with a companion object`() =
+            assertNotReported(
+                """
+                class Idle {
+                    companion object
+                }
+
+                fun foo() = takesState(State.Idle)
+                """.trimIndent(),
+                "State.Idle" to "Idle",
+            )
 
         @Test
         fun `does not report an entry shadowed by a function`() =

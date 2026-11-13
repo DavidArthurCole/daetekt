@@ -13,7 +13,6 @@ import dev.detekt.psi.isPartOf
 import org.jetbrains.kotlin.analysis.api.KaContextParameterApi
 import org.jetbrains.kotlin.analysis.api.KaExperimentalApi
 import org.jetbrains.kotlin.analysis.api.KaSession
-import org.jetbrains.kotlin.analysis.api.analyze
 import org.jetbrains.kotlin.analysis.api.components.resolveToCall
 import org.jetbrains.kotlin.analysis.api.components.resolveToCallCandidates
 import org.jetbrains.kotlin.analysis.api.components.scopeContext
@@ -22,14 +21,20 @@ import org.jetbrains.kotlin.analysis.api.expressions.expectedType
 import org.jetbrains.kotlin.analysis.api.expressions.expressionType
 import org.jetbrains.kotlin.analysis.api.expressions.returnType
 import org.jetbrains.kotlin.analysis.api.resolution.KaCallCandidateInfo
+import org.jetbrains.kotlin.analysis.api.resolution.KaCompoundVariableAccessCall
 import org.jetbrains.kotlin.analysis.api.resolution.KaFunctionCall
 import org.jetbrains.kotlin.analysis.api.resolution.KaInapplicableCallCandidateInfo
-import org.jetbrains.kotlin.analysis.api.resolution.resolveSymbol
+import org.jetbrains.kotlin.analysis.api.resolution.resolveSuccessfulSymbol
+import org.jetbrains.kotlin.analysis.api.resolution.successfulCallOrNull
 import org.jetbrains.kotlin.analysis.api.resolution.successfulFunctionCallOrNull
 import org.jetbrains.kotlin.analysis.api.resolution.symbol
+import org.jetbrains.kotlin.analysis.api.scopes.memberScope
+import org.jetbrains.kotlin.analysis.api.scopes.staticMemberScope
+import org.jetbrains.kotlin.analysis.api.session.analyze
 import org.jetbrains.kotlin.analysis.api.symbols.KaCallableSymbol
 import org.jetbrains.kotlin.analysis.api.symbols.KaClassKind
 import org.jetbrains.kotlin.analysis.api.symbols.KaClassLikeSymbol
+import org.jetbrains.kotlin.analysis.api.symbols.KaClassifierSymbol
 import org.jetbrains.kotlin.analysis.api.symbols.KaConstructorSymbol
 import org.jetbrains.kotlin.analysis.api.symbols.KaEnumEntrySymbol
 import org.jetbrains.kotlin.analysis.api.symbols.KaFunctionSymbol
@@ -48,8 +53,10 @@ import org.jetbrains.kotlin.analysis.api.types.KaType
 import org.jetbrains.kotlin.analysis.api.types.KaTypeParameterType
 import org.jetbrains.kotlin.analysis.api.types.isSubtypeOf
 import org.jetbrains.kotlin.analysis.api.types.semanticallyEquals
+import org.jetbrains.kotlin.analysis.api.types.type
 import org.jetbrains.kotlin.config.LanguageFeature
 import org.jetbrains.kotlin.lexer.KtTokens
+import org.jetbrains.kotlin.name.Name
 import org.jetbrains.kotlin.psi.KtBinaryExpression
 import org.jetbrains.kotlin.psi.KtBinaryExpressionWithTypeRHS
 import org.jetbrains.kotlin.psi.KtBlockExpression
@@ -96,8 +103,6 @@ import org.jetbrains.kotlin.psi.psiUtil.parents
  * The rule does not report:
  * - Names that already resolve without the qualifier, like an enum entry used inside its own enum
  * - Sealed subtypes nested more than one level below the expected type
- * - Sealed objects and companion properties in an if or when branch passed as an argument, since the other branches can
- * change the expected type
  * - Arguments that decide a type parameter of a function with other type parameters too
  * - Imports that are only needed without context-sensitive resolution, like `import com.example.Role.Admin` or
  * `import com.example.State.Failure`
@@ -204,16 +209,10 @@ class UseContextSensitiveResolution(config: Config) :
 
         analyze(expression) {
             @OptIn(KaExperimentalApi::class)
-            val symbol = selector.resolveSymbol() ?: return
+            val symbol = selector.resolveSuccessfulSymbol() ?: return
             val owner = owner(symbol) ?: return
             val expected = expectedType(expression) ?: return
             if (!expected.isSearchedIn(owner)) return
-            // In `failure ?: State.Loading` the left side's type State.Failure is expected, and Loading isn't one
-            if (expression.expressionType?.isSubtypeOf(expected) != true) return
-            // A branch of an if or when passed as an argument can get its expected type from the other branches.
-            // In `takesResponse(if (x) Response.Success(1) else Empty)` that is Response.Success<Int>, so Empty
-            // isn't found. Every enum entry has the enum's type, so enum entries are safe
-            if (symbol !is KaEnumEntrySymbol && argumentBranchRoot(expression) != null) return
             if (!isInScope(expression, symbol)) {
                 report(expression, selector.getReferencedName(), "the expected type is known")
             }
@@ -235,22 +234,33 @@ class UseContextSensitiveResolution(config: Config) :
             if (resolved.typeArgumentsMapping.size != 1) return
             val owner = commonOwner(names) ?: return
             if (!qualified.all { qualifiesWith(it, owner) }) return
-            if (!qualified.all { decidesTypeArgument(resolved, it, owner) }) return
+            if (!qualified.all { decidesTypeArgument(resolved, it) }) return
 
             val arguments = names.joinToString { it.getReferencedName() }
             val original = "${callee.text}(${qualified.joinToString { it.text }})"
             // val roles: List<Role> = listOf(Role.Admin) already gives listOf its type argument
             val typed = expression.expressionType?.let { expectedType(expression)?.semanticallyEquals(it) } == true
-            if (typed) {
-                report(expression, "${callee.text}($arguments)", "the expected type is known", original)
-            } else {
-                // listOf<Response>(...) would be missing Response's own type arguments
-                if (owner.typeParameters.isNotEmpty()) return
+            val inferredAsOwner = qualified.all {
+                resolved.valueArgumentMapping[it]?.returnType?.isClass(owner) == true
+            }
+            when {
+                inferredAsOwner && typed ->
+                    report(expression, "${callee.text}($arguments)", "the expected type is known", original)
+
                 // listOf<Role>(Admin) is no shorter than listOf(Role.Admin)
-                if (qualified.size < 2) return
-                val receiver = qualified.first().receiverExpression.text
-                val reason = "a type argument gives the names an expected type"
-                report(expression, "${callee.text}<$receiver>($arguments)", reason, original)
+                qualified.size < 2 -> return
+
+                // listOf<Response>(...) would be missing Response's own type arguments
+                inferredAsOwner && owner.typeParameters.isEmpty() -> {
+                    val receiver = qualified.first().receiverExpression.text
+                    val reason = "a type argument gives the names an expected type"
+                    report(expression, "${callee.text}<$receiver>($arguments)", reason, original)
+                }
+
+                qualified.first().expressionType?.isSearchedIn(owner) == true ->
+                    qualified.zip(names).drop(1).forEach { (argument, name) ->
+                        report(argument, name.getReferencedName(), "the expected type is known")
+                    }
             }
         }
     }
@@ -321,7 +331,7 @@ class UseContextSensitiveResolution(config: Config) :
         names
             .map { name ->
                 @OptIn(KaExperimentalApi::class)
-                val symbol = name.resolveSymbol() ?: return null
+                val symbol = name.resolveSuccessfulSymbol() ?: return null
                 if (isInScope(name, symbol)) return null
                 owner(symbol) ?: return null
             }
@@ -329,18 +339,11 @@ class UseContextSensitiveResolution(config: Config) :
             .singleOrNull()
 
     // Whether the argument goes to a parameter typed by the function's own type parameter, like the T in
-    // listOf's vararg parameter, and that type parameter is currently inferred as the owner class
+    // listOf's vararg parameter
     context(_: KaSession)
-    private fun decidesTypeArgument(
-        call: KaFunctionCall<*>,
-        argument: KtExpression,
-        owner: KaNamedClassSymbol,
-    ): Boolean {
-        val signature = call.valueArgumentMapping[argument] ?: return false
-        val declared = signature.symbol.returnType
-        return declared is KaTypeParameterType &&
-            isDecidedByArgument(declared.symbol, call.symbol) &&
-            signature.returnType.isClass(owner)
+    private fun decidesTypeArgument(call: KaFunctionCall<*>, argument: KtExpression): Boolean {
+        val declared = call.valueArgumentMapping[argument]?.symbol?.returnType
+        return declared is KaTypeParameterType && isDecidedByArgument(declared.symbol, call.symbol)
     }
 
     private fun report(element: KtElement, replacement: String, reason: String, original: String = element.text) =
@@ -359,7 +362,7 @@ class UseContextSensitiveResolution(config: Config) :
         val name = receiverName(expression) ?: return false
         if (name.getReferencedName() != owner.name.asString()) return false
         @OptIn(KaExperimentalApi::class)
-        val symbol = name.resolveSymbol()
+        val symbol = name.resolveSuccessfulSymbol()
         val isCompanion = symbol is KaNamedClassSymbol &&
             symbol.classKind == KaClassKind.COMPANION_OBJECT &&
             symbol.containingDeclaration == owner
@@ -437,9 +440,43 @@ class UseContextSensitiveResolution(config: Config) :
     @OptIn(KaContextParameterApi::class)
     context(_: KaSession)
     private fun argumentType(argument: KtValueArgument, expression: KtExpression): KaType? {
-        val call = callOf(argument)
-        val inferred = call != null && isInferred(call, expression) { type -> type }
-        return if (inferred) null else expression.expectedType
+        val call = callOf(argument) ?: return expression.expectedType
+        val name = selectorName(expression)
+        val sibling = name?.let { siblingType(call, expression, it) }
+        return sibling ?: expression.expectedType.takeUnless { isInferred(call, expression, name) { type -> type } }
+    }
+
+    private fun selectorName(expression: KtExpression): Name? {
+        val selector = (expression as? KtDotQualifiedExpression)?.selectorExpression
+        return (selector as? KtNameReferenceExpression)?.getReferencedNameAsName()
+    }
+
+    @OptIn(KaContextParameterApi::class)
+    context(_: KaSession)
+    private fun siblingType(call: KtCallExpression, argument: KtExpression, name: Name): KaType? {
+        if (call.typeArgumentList != null) return null
+        val resolved = functionCall(call) ?: return null
+        val signature = resolved.valueArgumentMapping[argument] ?: return null
+        val parameter = (signature.symbol.returnType as? KaTypeParameterType)?.symbol ?: return null
+        if (!isDecidedByArgument(parameter, resolved.symbol)) return null
+        if (overloadsDisagree(call, argument, signature.returnType, name) { type -> type }) return null
+        val holders = resolved.valueArgumentMapping
+            .filter { (other, otherSignature) ->
+                other != argument &&
+                    (otherSignature.symbol.returnType as? KaTypeParameterType)?.symbol == parameter &&
+                    !mayLoseQualifier(other)
+            }
+            .mapNotNull { (other, _) -> other.expressionType }
+            .filter { it.mayHold(name) }
+        return holders.firstOrNull()?.takeIf { first -> holders.all { it.classSymbol() == first.classSymbol() } }
+    }
+
+    @OptIn(KaContextParameterApi::class)
+    context(_: KaSession)
+    private fun functionCall(call: KtElement): KaFunctionCall<*>? {
+        val info = call.resolveToCall()
+        return info?.successfulFunctionCallOrNull()
+            ?: info?.successfulCallOrNull<KaCompoundVariableAccessCall>()?.compoundOperation?.operationCall
     }
 
     @OptIn(KaContextParameterApi::class)
@@ -453,13 +490,11 @@ class UseContextSensitiveResolution(config: Config) :
 
             KtTokens.ELVIS -> if (binary.right == operand) binary.left?.expressionType else null
 
-            // roles += Role.Admin doesn't pass an expected type down
-            in KtTokens.AUGMENTED_ASSIGNMENTS -> null
-
             else -> {
-                val resolved = binary.resolveToCall()?.successfulFunctionCallOrNull()
-                val signature = resolved?.valueArgumentMapping?.get(operand)
-                signature?.returnType?.takeUnless { isInferred(binary, operand) { type -> type } }
+                val signature = functionCall(binary)?.valueArgumentMapping?.get(operand)
+                signature?.returnType?.takeUnless {
+                    isInferred(binary, operand, selectorName(operand)) { type -> type }
+                }
             }
         }
 
@@ -531,7 +566,7 @@ class UseContextSensitiveResolution(config: Config) :
                 val label = parent.getTargetLabel() ?: return null
 
                 @OptIn(KaExperimentalApi::class, KtExperimentalApi::class)
-                val target = label.resolveSymbol()?.psi as? KtFunctionLiteral
+                val target = label.resolveSuccessfulSymbol()?.psi as? KtFunctionLiteral
                 return target?.parent as? KtLambdaExpression
             }
 
@@ -550,27 +585,54 @@ class UseContextSensitiveResolution(config: Config) :
     // can't be pinned down because overloads disagree about it. There is no expected type in both
     @OptIn(KaContextParameterApi::class)
     context(_: KaSession)
-    private fun isInferred(call: KtElement, argument: KtExpression, select: (KaType) -> KaType?): Boolean {
-        val resolved = call.resolveToCall()?.successfulFunctionCallOrNull()
+    private fun isInferred(
+        call: KtElement,
+        argument: KtExpression,
+        name: Name? = null,
+        select: (KaType) -> KaType?,
+    ): Boolean {
+        val resolved = functionCall(call)
         val signature = resolved?.valueArgumentMapping?.get(argument)
         val declared = signature?.let { select(it.symbol.returnType) }
         val substituted = signature?.let { select(it.returnType) }
         if (resolved == null || declared == null || substituted == null) return true
 
-        // overloaded(Role.Admin) with overloaded(Role) and overloaded(Int) has no single expected type
-        val overloadsDisagree = call.resolveToCallCandidates().any { info ->
-            val candidate = info.candidate as? KaFunctionCall<*>
-            val other = candidate?.valueArgumentMapping?.get(argument)?.returnType
-            other != null &&
-                !failsElsewhere(info, argument) &&
-                select(other)?.semanticallyEquals(substituted) != true
-        }
-
         val decidedByArgument = (call as? KtCallExpression)?.typeArgumentList == null &&
             declared is KaTypeParameterType &&
             isDecidedByArgument(declared.symbol, resolved.symbol) &&
             !isFixedByOtherArgument(resolved, argument, declared.symbol, substituted)
-        return overloadsDisagree || decidedByArgument
+        return overloadsDisagree(call, argument, substituted, name, select) || decidedByArgument
+    }
+
+    @OptIn(KaContextParameterApi::class)
+    context(_: KaSession)
+    private fun overloadsDisagree(
+        call: KtElement,
+        argument: KtExpression,
+        type: KaType,
+        name: Name?,
+        select: (KaType) -> KaType?,
+    ): Boolean =
+        call.resolveToCallCandidates().any { info ->
+            val candidate = info.candidate as? KaFunctionCall<*>
+            val parameter = candidate?.valueArgumentMapping?.get(argument)?.returnType
+            val other = parameter?.let(select)
+            parameter != null &&
+                !failsElsewhere(info, argument) &&
+                other?.semanticallyEquals(type) != true &&
+                (name == null || other == null || other.mayHold(name))
+        }
+
+    @OptIn(KaContextParameterApi::class)
+    context(_: KaSession)
+    private fun KaType.mayHold(name: Name): Boolean {
+        val expected = classSymbol() ?: return true
+        return searchedClasses(expected).any { searched ->
+            val static = searched.staticMemberScope
+            static.callables(name).any() ||
+                static.classifiers(name).any() ||
+                searched.companionObject?.memberScope?.callables(name)?.any() == true
+        }
     }
 
     // Whether another argument already gives the type parameter its type, as makeRole() does in
@@ -600,7 +662,7 @@ class UseContextSensitiveResolution(config: Config) :
             ?: return false
 
         @OptIn(KaExperimentalApi::class)
-        val symbol = selector.resolveSymbol() ?: return true
+        val symbol = selector.resolveSuccessfulSymbol() ?: return true
         return owner(symbol) != null
     }
 
@@ -641,14 +703,23 @@ class UseContextSensitiveResolution(config: Config) :
     @OptIn(KaContextParameterApi::class)
     context(_: KaSession)
     private fun KaType.isSearchedIn(owner: KaNamedClassSymbol): Boolean {
-        if (isClass(owner)) return true
-        val type = (this as? KaFlexibleType)?.lowerBound ?: this
-        val expected = (type as? KaClassType)?.symbol as? KaNamedClassSymbol ?: return false
-        return generateSequence(expected.containingDeclaration as? KaNamedClassSymbol) {
+        val expected = classSymbol() ?: return false
+        return searchedClasses(expected).any { it == owner }
+    }
+
+    @OptIn(KaContextParameterApi::class)
+    context(_: KaSession)
+    private fun searchedClasses(expected: KaNamedClassSymbol): Sequence<KaNamedClassSymbol> {
+        val outer = generateSequence(expected.containingDeclaration as? KaNamedClassSymbol) {
             it.containingDeclaration as? KaNamedClassSymbol
         }
-            .takeWhile { expected.isSubClassOf(it) }
-            .any { it == owner && it.modality == KaSymbolModality.SEALED }
+        return sequenceOf(expected) +
+            outer.takeWhile { expected.isSubClassOf(it) }.filter { it.modality == KaSymbolModality.SEALED }
+    }
+
+    private fun KaType.classSymbol(): KaNamedClassSymbol? {
+        val type = (this as? KaFlexibleType)?.lowerBound ?: this
+        return (type as? KaClassType)?.symbol as? KaNamedClassSymbol
     }
 
     // A plain name that already resolves wins over context-sensitive resolution, whether it finds something
@@ -662,10 +733,13 @@ class UseContextSensitiveResolution(config: Config) :
         @OptIn(KaExperimentalApi::class)
         val receivers = context.implicitValues.map { it.type }
         return context.scopes.any { scoped ->
-            scoped.scope.classifiers(name).any() ||
+            scoped.scope.classifiers(name).any { isType || it.canBeValue() } ||
                 (!isType && scoped.scope.callables(name).any { it.isReachableWith(receivers) })
         }
     }
+
+    private fun KaClassifierSymbol.canBeValue(): Boolean =
+        this !is KaNamedClassSymbol || classKind.isObject || companionObject != null
 
     // An extension like `val Icons.Admin` is only found when an implicit receiver fits it
     @OptIn(KaContextParameterApi::class)

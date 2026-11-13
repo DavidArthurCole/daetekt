@@ -11,7 +11,8 @@ import dev.detekt.api.Rule
 import dev.detekt.api.config
 import dev.detekt.psi.isPartOf
 import org.jetbrains.kotlin.analysis.api.KaExperimentalApi
-import org.jetbrains.kotlin.analysis.api.analyze
+import org.jetbrains.kotlin.analysis.api.resolution.resolveSuccessfulSymbol
+import org.jetbrains.kotlin.analysis.api.session.analyze
 import org.jetbrains.kotlin.analysis.api.symbols.KaCallableSymbol
 import org.jetbrains.kotlin.analysis.api.symbols.KaClassKind
 import org.jetbrains.kotlin.analysis.api.symbols.KaClassLikeSymbol
@@ -195,7 +196,7 @@ class UnusedImport(config: Config) :
         private fun KtReferenceExpression.fqNamesOrEmpty(): Set<FqName> =
             analyze(this) {
                 @OptIn(KaExperimentalApi::class)
-                resolveSymbol()
+                resolveSuccessfulSymbol()
                     ?.fqNamesForImport
                     .orEmpty()
             }

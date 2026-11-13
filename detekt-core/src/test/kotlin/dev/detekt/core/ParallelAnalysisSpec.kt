@@ -10,9 +10,10 @@ import dev.detekt.test.utils.createEnvironment
 import dev.detekt.tooling.api.AnalysisMode
 import dev.detekt.tooling.api.spec.ProcessingSpec
 import org.assertj.core.api.Assertions.assertThat
-import org.jetbrains.kotlin.analysis.api.analyze
+import org.jetbrains.kotlin.analysis.api.components.resolveToCall
 import org.jetbrains.kotlin.analysis.api.resolution.singleFunctionCallOrNull
 import org.jetbrains.kotlin.analysis.api.resolution.symbol
+import org.jetbrains.kotlin.analysis.api.session.analyze
 import org.jetbrains.kotlin.psi.KtCallExpression
 import org.jetbrains.kotlin.psi.KtFile
 import org.junit.jupiter.api.Nested

@@ -9,12 +9,17 @@ import dev.detekt.psi.isOverride
 import org.jetbrains.kotlin.analysis.api.KaContextParameterApi
 import org.jetbrains.kotlin.analysis.api.KaIdeApi
 import org.jetbrains.kotlin.analysis.api.KaSession
-import org.jetbrains.kotlin.analysis.api.analyze
 import org.jetbrains.kotlin.analysis.api.components.computeMissingCases
+import org.jetbrains.kotlin.analysis.api.components.resolveToCall
+import org.jetbrains.kotlin.analysis.api.expressions.expressionType
+import org.jetbrains.kotlin.analysis.api.expressions.isUsedAsExpression
 import org.jetbrains.kotlin.analysis.api.resolution.KaCallableMemberCall
 import org.jetbrains.kotlin.analysis.api.resolution.singleCallOrNull
 import org.jetbrains.kotlin.analysis.api.resolution.symbol
+import org.jetbrains.kotlin.analysis.api.session.analyze
+import org.jetbrains.kotlin.analysis.api.types.KaStandardTypeClassIds
 import org.jetbrains.kotlin.analysis.api.types.KaTypeParameterType
+import org.jetbrains.kotlin.analysis.api.types.classId
 import org.jetbrains.kotlin.config.AnalysisFlags
 import org.jetbrains.kotlin.config.ExplicitApiMode
 import org.jetbrains.kotlin.psi.KtBlockExpression
@@ -85,7 +90,7 @@ class OptionalUnit(config: Config) :
                         else -> {
                             val prev =
                                 it.siblings(forward = false, withItself = false).firstIsInstanceOrNull<KtExpression>()
-                            prev?.expressionType?.isUnitType == true && prev.canBeUsedAsValue()
+                            prev?.expressionType?.classId == KaStandardTypeClassIds.UNIT && prev.canBeUsedAsValue()
                         }
                     }
                 }
@@ -150,7 +155,7 @@ class OptionalUnit(config: Config) :
                 ?.singleCallOrNull<KaCallableMemberCall<*, *>>()
                 ?.symbol
                 ?.returnType is KaTypeParameterType
-            val isNothingType = expressionType?.isNothingType == true
+            val isNothingType = expressionType?.classId == KaStandardTypeClassIds.NOTHING
             // Either the function initializer returns Nothing or it is a generic function
             // into which Unit is passed, but not both.
             return (isGenericType && !isNothingType) || (isNothingType && !isGenericType)

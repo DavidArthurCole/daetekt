@@ -14,9 +14,11 @@ import dev.detekt.core.parser.DetektMessageCollector
 import dev.detekt.core.rules.createRuleProviders
 import dev.detekt.core.util.PerformanceMonitor.Phase
 import dev.detekt.tooling.api.AnalysisMode
-import org.jetbrains.kotlin.analysis.api.analyze
-import org.jetbrains.kotlin.analysis.api.components.KaDiagnosticCheckerFilter
+import org.jetbrains.kotlin.analysis.api.KaExperimentalApi
+import org.jetbrains.kotlin.analysis.api.diagnostics.KaDiagnosticCheckerKind
 import org.jetbrains.kotlin.analysis.api.diagnostics.KaSeverity
+import org.jetbrains.kotlin.analysis.api.diagnostics.diagnostics
+import org.jetbrains.kotlin.analysis.api.session.analyze
 import org.jetbrains.kotlin.cli.common.messages.CompilerMessageLocationWithRange
 import org.jetbrains.kotlin.cli.common.messages.CompilerMessageSeverity
 import org.jetbrains.kotlin.diagnostics.DiagnosticUtils.getLineAndColumnRangeInPsiFile
@@ -59,6 +61,7 @@ internal class Lifecycle(
         return measure(Phase.Reporting) { handleReportingExtensions(settings, result) }
     }
 
+    @OptIn(KaExperimentalApi::class)
     private fun validateClasspath(files: List<KtFile>) {
         val collector = DetektMessageCollector(
             minSeverity = CompilerMessageSeverity.ERROR,
@@ -69,7 +72,7 @@ internal class Lifecycle(
 
         files.forEach { file: KtFile ->
             analyze(file) {
-                file.collectDiagnostics(KaDiagnosticCheckerFilter.ONLY_COMMON_CHECKERS).forEach { diagnostic ->
+                file.diagnostics().withCheckers(KaDiagnosticCheckerKind.COMMON).forEach { diagnostic ->
                     val lineAndColumnRange =
                         getLineAndColumnRangeInPsiFile(diagnostic.psi.containingFile, diagnostic.psi.textRange)
 

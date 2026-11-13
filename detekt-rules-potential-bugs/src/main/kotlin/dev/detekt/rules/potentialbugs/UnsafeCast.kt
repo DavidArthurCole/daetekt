@@ -8,9 +8,11 @@ import dev.detekt.api.Finding
 import dev.detekt.api.RequiresAnalysisApi
 import dev.detekt.api.Rule
 import org.jetbrains.kotlin.analysis.api.KaExperimentalApi
-import org.jetbrains.kotlin.analysis.api.analyze
-import org.jetbrains.kotlin.analysis.api.components.KaDiagnosticCheckerFilter
+import org.jetbrains.kotlin.analysis.api.diagnostics.KaDiagnosticCheckerKind
+import org.jetbrains.kotlin.analysis.api.diagnostics.diagnostics
 import org.jetbrains.kotlin.analysis.api.fir.diagnostics.KaFirDiagnostic
+import org.jetbrains.kotlin.analysis.api.fir.diagnostics.KaUnstableDiagnosticApi
+import org.jetbrains.kotlin.analysis.api.session.analyze
 import org.jetbrains.kotlin.lexer.KtTokens
 import org.jetbrains.kotlin.psi.KtBinaryExpressionWithTypeRHS
 import org.jetbrains.kotlin.psi.KtOperationReferenceExpression
@@ -43,14 +45,14 @@ class UnsafeCast(config: Config) :
     ),
     RequiresAnalysisApi {
 
-    @OptIn(KaExperimentalApi::class)
+    @OptIn(KaExperimentalApi::class, KaUnstableDiagnosticApi::class)
     override fun visitBinaryWithTypeRHSExpression(expression: KtBinaryExpressionWithTypeRHS) {
         val operationToken = (expression.operationReference as? KtOperationReferenceExpression)?.operationSignTokenType
         if (operationToken != KtTokens.AS_KEYWORD && operationToken != KtTokens.AS_SAFE) return
 
         val isCastNeverSucceeds = analyze(expression) {
             expression
-                .directDiagnostics(KaDiagnosticCheckerFilter.ONLY_COMMON_CHECKERS)
+                .diagnostics().directOnly(true).withCheckers(KaDiagnosticCheckerKind.COMMON)
                 .any { it is KaFirDiagnostic.CastNeverSucceeds }
         }
 

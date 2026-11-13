@@ -9,7 +9,9 @@ import dev.detekt.api.Finding
 import dev.detekt.api.RequiresAnalysisApi
 import dev.detekt.api.Rule
 import org.jetbrains.kotlin.analysis.api.KaExperimentalApi
-import org.jetbrains.kotlin.analysis.api.analyze
+import org.jetbrains.kotlin.analysis.api.expressions.isUsedAsExpression
+import org.jetbrains.kotlin.analysis.api.resolution.resolveSuccessfulSymbol
+import org.jetbrains.kotlin.analysis.api.session.analyze
 import org.jetbrains.kotlin.analysis.api.symbols.KaNamedFunctionSymbol
 import org.jetbrains.kotlin.builtins.StandardNames
 import org.jetbrains.kotlin.lexer.KtTokens
@@ -63,7 +65,7 @@ class UnusedUnaryOperator(config: Config) :
             if (parentOrSelf.isUsedAsExpression) return
             @OptIn(KtExperimentalApi::class, KaExperimentalApi::class)
             val operatorSymbol =
-                expression.operationReference.resolveSymbol() as? KaNamedFunctionSymbol ?: return
+                expression.operationReference.resolveSuccessfulSymbol() as? KaNamedFunctionSymbol ?: return
             val classId = operatorSymbol.callableId?.classId ?: return
             if (!classId.startsWith(StandardNames.BUILT_INS_PACKAGE_NAME)) return
             val message = "This '${parentOrSelf.text}' is not used"

@@ -17,11 +17,11 @@ import org.jetbrains.kotlin.K1Deprecation
 import org.jetbrains.kotlin.analysis.api.KaContextParameterApi
 import org.jetbrains.kotlin.analysis.api.KaExperimentalApi
 import org.jetbrains.kotlin.analysis.api.KaSession
-import org.jetbrains.kotlin.analysis.api.analyze
 import org.jetbrains.kotlin.analysis.api.components.resolveToCall
-import org.jetbrains.kotlin.analysis.api.resolution.resolveSymbol
+import org.jetbrains.kotlin.analysis.api.resolution.resolveSuccessfulSymbol
 import org.jetbrains.kotlin.analysis.api.resolution.singleVariableAccessCall
 import org.jetbrains.kotlin.analysis.api.resolution.symbol
+import org.jetbrains.kotlin.analysis.api.session.analyze
 import org.jetbrains.kotlin.analysis.api.symbols.KaSymbol
 import org.jetbrains.kotlin.analysis.api.symbols.symbol
 import org.jetbrains.kotlin.lexer.KtTokens
@@ -166,7 +166,7 @@ class VarCouldBeVal(config: Config) :
                 if (expressionRight != null) {
                     analyze(expression) {
                         @OptIn(KaExperimentalApi::class)
-                        val symbol = (expression.left as? KtNameReferenceExpression)?.resolveSymbol()
+                        val symbol = (expression.left as? KtNameReferenceExpression)?.resolveSuccessfulSymbol()
                         if (symbol != null) {
                             evaluateAssignmentExpression(symbol, expressionRight)
                         }
@@ -215,7 +215,7 @@ class VarCouldBeVal(config: Config) :
 
                 is KtNameReferenceExpression -> {
                     @OptIn(KaExperimentalApi::class)
-                    returnedExpression.resolveSymbol()?.let {
+                    returnedExpression.resolveSuccessfulSymbol()?.let {
                         escapeCandidates[it]?.forEach(declarationCandidates::remove)
                     }
                 }
