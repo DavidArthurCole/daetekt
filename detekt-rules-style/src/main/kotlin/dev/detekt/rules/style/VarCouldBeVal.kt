@@ -13,12 +13,13 @@ import dev.detekt.api.config
 import dev.detekt.psi.isActual
 import dev.detekt.psi.isLateinit
 import dev.detekt.psi.isOverride
+import org.jetbrains.kotlin.K1Deprecation
 import org.jetbrains.kotlin.analysis.api.KaContextParameterApi
 import org.jetbrains.kotlin.analysis.api.KaExperimentalApi
 import org.jetbrains.kotlin.analysis.api.KaSession
 import org.jetbrains.kotlin.analysis.api.analyze
-import org.jetbrains.kotlin.analysis.api.components.resolveSymbol
 import org.jetbrains.kotlin.analysis.api.components.resolveToCall
+import org.jetbrains.kotlin.analysis.api.resolution.resolveSymbol
 import org.jetbrains.kotlin.analysis.api.resolution.singleVariableAccessCall
 import org.jetbrains.kotlin.analysis.api.resolution.symbol
 import org.jetbrains.kotlin.analysis.api.symbols.KaSymbol
@@ -241,6 +242,7 @@ class VarCouldBeVal(config: Config) :
                 else -> {
                     // Check for whether property belongs to an anonymous object
                     // defined in a function.
+                    @OptIn(K1Deprecation::class)
                     containingClassOrObject
                         ?.takeIf { it.isObjectLiteral() }
                         ?.containingNonLocalDeclaration() != null

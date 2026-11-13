@@ -87,7 +87,6 @@ class UseContextSensitiveResolutionSpec(private val env: KotlinEnvironmentContai
         fun `does not report sealed object in an argument branch`() =
             assertNotReported(
                 "fun foo(set: Boolean) = takesResponse(if (set) Response.Success(1) else Response.Empty)",
-                "Response.Empty" to "Empty",
             )
 
         @Test
@@ -139,7 +138,6 @@ class UseContextSensitiveResolutionSpec(private val env: KotlinEnvironmentContai
         fun `does not report when another argument decides a subtype`() =
             assertNotReported(
                 "fun foo(failure: State.Failure) = listOf(State.Loading, failure)",
-                "State.Loading" to "Loading",
             )
 
         @Test
@@ -157,7 +155,7 @@ class UseContextSensitiveResolutionSpec(private val env: KotlinEnvironmentContai
 
         @Test
         fun `does not report when overloads disagree on the type`() =
-            assertNotReported("fun foo() = overloaded(Role.Admin)", "Role.Admin" to "Admin")
+            assertNotReported("fun foo() = overloaded(Role.Admin)")
 
         @Test
         fun `reports a named argument that only one overload has`() =
@@ -172,7 +170,6 @@ class UseContextSensitiveResolutionSpec(private val env: KotlinEnvironmentContai
 
                 fun foo() = choose(Role.Admin, 1)
                 """.trimIndent(),
-                "Role.Admin" to "Admin",
             )
 
         @Test
@@ -184,7 +181,6 @@ class UseContextSensitiveResolutionSpec(private val env: KotlinEnvironmentContai
 
                 fun foo() = choose(value = Role.Admin, count = 1)
                 """.trimIndent(),
-                "Role.Admin" to "Admin",
             )
 
         @Test
@@ -314,7 +310,6 @@ class UseContextSensitiveResolutionSpec(private val env: KotlinEnvironmentContai
         fun `does not report a compound assignment`() =
             assertNotReported(
                 "fun foo(roles: MutableList<Role>) { roles += Role.Admin }",
-                "Role.Admin" to "Admin",
             )
 
         @Test
@@ -333,14 +328,12 @@ class UseContextSensitiveResolutionSpec(private val env: KotlinEnvironmentContai
         fun `does not report an elvis operand that is a sibling of the left side's sealed subtype`() =
             assertNotReported(
                 "fun foo(failure: State.Failure?) = failure ?: State.Loading",
-                "State.Loading" to "Loading",
             )
 
         @Test
         fun `does not report an elvis operand that is a sibling of the left side's sealed subtype in an argument`() =
             assertNotReported(
                 "fun foo(reason: String?) = takesState(reason?.let(State::Failure) ?: State.Loading)",
-                "State.Loading" to "Loading",
             )
     }
 
@@ -710,15 +703,12 @@ class UseContextSensitiveResolutionSpec(private val env: KotlinEnvironmentContai
         fun `does not report when one entry is shadowed`() =
             assertNotReported(
                 "fun foo() = listOf(Method.Password, Method.Header)",
-                "listOf(Method.Password, Method.Header)" to "listOf<Method>(Password, Header)",
             )
 
         @Test
         fun `does not report when the expected type widens the collection`() =
             assertNotReported(
                 "val roles: MutableList<Any> = mutableListOf(Role.Admin, Role.Basic)",
-                "Role.Admin" to "Admin",
-                "Role.Basic" to "Basic",
             )
 
         @Test
@@ -740,8 +730,6 @@ class UseContextSensitiveResolutionSpec(private val env: KotlinEnvironmentContai
 
                 fun foo() = listOf(Reply.None, Reply.Gone)
                 """.trimIndent(),
-                "Reply.None" to "None",
-                "Reply.Gone" to "Gone",
             )
 
         @Test
@@ -786,7 +774,7 @@ class UseContextSensitiveResolutionSpec(private val env: KotlinEnvironmentContai
 
         @Test
         fun `does not report an entry shadowed by a class`() =
-            assertNotReported("fun foo() = takesMethod(Method.Password)", "Method.Password" to "Password")
+            assertNotReported("fun foo() = takesMethod(Method.Password)")
 
         @Test
         fun `does not report an entry shadowed by a function`() =

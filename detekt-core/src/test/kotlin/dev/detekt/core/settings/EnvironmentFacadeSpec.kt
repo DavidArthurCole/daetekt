@@ -6,10 +6,10 @@ import org.assertj.core.api.Assertions.assertThat
 import org.jetbrains.kotlin.analysis.api.analyze
 import org.jetbrains.kotlin.analysis.api.components.KaDiagnosticCheckerFilter
 import org.jetbrains.kotlin.analysis.api.diagnostics.KaSeverity
-import org.jetbrains.org.objectweb.asm.ClassWriter
-import org.jetbrains.org.objectweb.asm.Opcodes
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.io.TempDir
+import java.io.ByteArrayOutputStream
+import java.io.DataOutputStream
 import java.nio.file.Path
 import java.util.jar.JarEntry
 import java.util.jar.JarOutputStream
@@ -101,8 +101,36 @@ private fun writeJar(jar: Path, vararg classNames: String) {
     }
 }
 
-private fun emptyClass(name: String): ByteArray =
-    ClassWriter(0).apply {
-        visit(Opcodes.V1_8, Opcodes.ACC_PUBLIC, name, null, "java/lang/Object", null)
-        visitEnd()
-    }.toByteArray()
+private fun emptyClass(name: String): ByteArray {
+    val bytes = ByteArrayOutputStream()
+    DataOutputStream(bytes).use { out ->
+        out.writeInt(CLASS_FILE_MAGIC)
+        out.writeShort(0)
+        out.writeShort(JAVA_8_MAJOR_VERSION)
+        out.writeShort(CONSTANT_POOL_COUNT)
+        out.writeByte(CONSTANT_UTF8)
+        out.writeUTF(name)
+        out.writeByte(CONSTANT_CLASS)
+        out.writeShort(1)
+        out.writeByte(CONSTANT_UTF8)
+        out.writeUTF("java/lang/Object")
+        out.writeByte(CONSTANT_CLASS)
+        out.writeShort(SUPER_CLASS_NAME_INDEX)
+        out.writeShort(ACC_PUBLIC_SUPER)
+        out.writeShort(THIS_CLASS_INDEX)
+        out.writeShort(SUPER_CLASS_INDEX)
+        repeat(MEMBER_TABLE_COUNT) { out.writeShort(0) }
+    }
+    return bytes.toByteArray()
+}
+
+private const val CLASS_FILE_MAGIC = 0xCAFEBABE.toInt()
+private const val JAVA_8_MAJOR_VERSION = 52
+private const val CONSTANT_POOL_COUNT = 5
+private const val CONSTANT_UTF8 = 1
+private const val CONSTANT_CLASS = 7
+private const val SUPER_CLASS_NAME_INDEX = 3
+private const val ACC_PUBLIC_SUPER = 0x21
+private const val THIS_CLASS_INDEX = 2
+private const val SUPER_CLASS_INDEX = 4
+private const val MEMBER_TABLE_COUNT = 4

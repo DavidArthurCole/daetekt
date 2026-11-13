@@ -127,10 +127,7 @@ class MissingStackTraceRecoverable(config: Config) :
                 .filterIsInstance<KaVariableSymbol>()
                 .any {
                     (it is KaJavaFieldSymbol && !it.isStatic) ||
-                        (
-                            it is KaPropertySymbol && !it.isStatic &&
-                                (it.isDelegatedProperty || it.hasBackingField)
-                            )
+                        (it is KaPropertySymbol && !it.isStatic && (it.isDelegated || it.hasBackingField))
                 }
         }
 

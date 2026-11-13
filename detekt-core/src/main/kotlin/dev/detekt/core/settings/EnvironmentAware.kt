@@ -2,6 +2,8 @@ package dev.detekt.core.settings
 
 import com.intellij.openapi.Disposable
 import com.intellij.openapi.util.Disposer
+import com.intellij.openapi.vfs.impl.ZipHandler
+import com.intellij.openapi.vfs.impl.jar.CoreJarFileSystem
 import com.intellij.pom.PomModel
 import com.intellij.pom.tree.TreeAspect
 import dev.detekt.core.parser.createCompilerConfiguration
@@ -9,6 +11,7 @@ import dev.detekt.parser.DetektPomModel
 import dev.detekt.tooling.api.spec.CompilerSpec
 import dev.detekt.tooling.api.spec.LoggingSpec
 import dev.detekt.tooling.api.spec.ProjectSpec
+import org.jetbrains.kotlin.CoreEnvironmentDeprecation
 import org.jetbrains.kotlin.analysis.api.KaExperimentalApi
 import org.jetbrains.kotlin.analysis.api.projectStructure.KaSourceModule
 import org.jetbrains.kotlin.analysis.api.standalone.buildStandaloneAnalysisAPISession
@@ -16,7 +19,9 @@ import org.jetbrains.kotlin.analysis.project.structure.builder.buildKtLibraryMod
 import org.jetbrains.kotlin.analysis.project.structure.builder.buildKtSdkModule
 import org.jetbrains.kotlin.analysis.project.structure.builder.buildKtSourceModule
 import org.jetbrains.kotlin.cli.common.config.kotlinSourceRoots
+import org.jetbrains.kotlin.cli.jvm.compiler.KotlinCoreEnvironment
 import org.jetbrains.kotlin.cli.jvm.config.jvmClasspathRoots
+import org.jetbrains.kotlin.cli.jvm.modules.CoreJrtFileSystem
 import org.jetbrains.kotlin.config.CompilerConfiguration
 import org.jetbrains.kotlin.config.JvmTarget
 import org.jetbrains.kotlin.config.LanguageVersionSettings
@@ -24,7 +29,6 @@ import org.jetbrains.kotlin.config.friendPaths
 import org.jetbrains.kotlin.config.jdkHome
 import org.jetbrains.kotlin.config.jvmTarget
 import org.jetbrains.kotlin.config.languageVersionSettings
-import org.jetbrains.kotlin.incremental.clearJarCaches
 import org.jetbrains.kotlin.platform.jvm.JvmPlatforms
 import org.jetbrains.kotlin.psi.KtFile
 import java.io.OutputStream
@@ -42,8 +46,7 @@ internal class EnvironmentFacade(projectSpec: ProjectSpec, compilerSpec: Compile
 
     private val printStream = if (loggingSpec.debug) loggingSpec.errorChannel.asPrintStream() else NullPrintStream
 
-    // This lateinit var can be changed to val if https://github.com/JetBrains/kotlin/pull/5703 is merged
-    private lateinit var sourceModule: KaSourceModule
+    private var sourceModule: KaSourceModule
 
     private val configuration: CompilerConfiguration = createCompilerConfiguration(
         projectSpec.inputPaths.toList(),
@@ -124,6 +127,14 @@ internal class EnvironmentFacade(projectSpec: ProjectSpec, compilerSpec: Compile
         Disposer.dispose(disposable)
         clearJarCaches()
     }
+}
+
+@OptIn(CoreEnvironmentDeprecation::class)
+private fun clearJarCaches() {
+    ZipHandler.clearFileAccessorCache()
+    val applicationEnvironment = KotlinCoreEnvironment.applicationEnvironment ?: return
+    (applicationEnvironment.jarFileSystem as? CoreJarFileSystem)?.clearHandlersCache()
+    (applicationEnvironment.jrtFileSystem as? CoreJrtFileSystem)?.clearRoots()
 }
 
 private object NullPrintStream : PrintStream(
