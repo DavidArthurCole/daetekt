@@ -34,7 +34,7 @@ class ReportMergeSpec {
         }
         val mainBuildFileContent: String = """
             plugins {
-                id("dev.detekt")
+                id("io.github.davidarthurcole.daetekt")
             }
             
             val reportMerge = tasks.register<dev.detekt.gradle.report.ReportMergeTask>("reportMerge") {
@@ -45,7 +45,7 @@ class ReportMergeSpec {
             
             subprojects {
                 apply(plugin = "org.jetbrains.kotlin.jvm")
-                apply(plugin = "dev.detekt")
+                apply(plugin = "io.github.davidarthurcole.daetekt")
             
                 plugins.withType<dev.detekt.gradle.plugin.DetektPlugin> {
                     tasks.withType<dev.detekt.gradle.Detekt>().configureEach {
@@ -106,7 +106,7 @@ class ReportMergeSpec {
                 buildFileContent = """
                     plugins {
                         id("com.android.application")
-                        id("dev.detekt")
+                        id("io.github.davidarthurcole.daetekt")
                     }
                     android {
                        compileSdk = 34
@@ -143,7 +143,7 @@ class ReportMergeSpec {
         }
         val mainBuildFileContent: String = """
             plugins {
-                id("dev.detekt")
+                id("io.github.davidarthurcole.daetekt")
             }
             
             val reportMerge = tasks.register<dev.detekt.gradle.report.ReportMergeTask>("reportMerge") {
@@ -153,7 +153,7 @@ class ReportMergeSpec {
             }
             
             subprojects {
-                apply(plugin = "dev.detekt")
+                apply(plugin = "io.github.davidarthurcole.daetekt")
             
                 plugins.withType<dev.detekt.gradle.plugin.DetektPlugin> {
                     tasks.withType<dev.detekt.gradle.Detekt>().configureEach {

@@ -39,7 +39,7 @@ open class Rule(val config: Config, val description: String, val url: URI? = nul
             (
                 config.valueOrNull<Boolean>(Config.AUTO_CORRECT_KEY)
                     ?: config.parent?.valueOrNull<Boolean>(Config.AUTO_CORRECT_KEY)
-                    ?: false
+                    ?: true
                 )
 
     private val findings: MutableList<Finding> = mutableListOf()

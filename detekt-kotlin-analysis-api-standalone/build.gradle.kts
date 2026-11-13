@@ -57,8 +57,11 @@ val sourcesJar = tasks.register<Jar>("sourcesJar") {
 }
 
 java {
-    targetCompatibility = JavaVersion.VERSION_17
     withSourcesJar()
+}
+
+tasks.withType<JavaCompile>().configureEach {
+    options.release = libs.versions.jvmTarget.get().toInt()
 }
 
 shadow {

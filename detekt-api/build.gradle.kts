@@ -26,6 +26,7 @@ detekt {
 }
 
 buildConfig {
+    packageName("dev.detekt.detekt_api")
     buildConfigField("DETEKT_VERSION", Versions.DETEKT)
     buildConfigField("KOTLIN_IMPLEMENTATION_VERSION", libs.versions.kotlin.analysisApi.get())
 }

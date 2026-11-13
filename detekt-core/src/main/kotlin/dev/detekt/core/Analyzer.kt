@@ -28,7 +28,7 @@ internal class Analyzer(
     fun run(ktFiles: Collection<KtFile>): List<Issue> {
         val languageVersionSettings = settings.languageVersionSettings
 
-        return if (settings.spec.executionSpec.parallelAnalysis) {
+        return if (settings.spec.executionSpec.parallelAnalysis && analysisMode != AnalysisMode.Full) {
             runAsync(ktFiles, languageVersionSettings)
         } else {
             runSync(ktFiles, languageVersionSettings)
@@ -80,18 +80,24 @@ internal class Analyzer(
                 .filterNot {
                     it.entity.ktElement.isSuppressedBy(ruleInstance.id, rule.aliases, ruleInstance.ruleSetId)
                 }
-                .filterSuppressedFindings(rule, analysisMode)
+                .filterSuppressedFindings(rule, analysisMode, file)
                 .map { it.toIssue(ruleInstance, ruleInstance.severity, settings.spec.projectSpec.basePath) }
         }
     }
 }
 
-private fun List<Finding>.filterSuppressedFindings(rule: Rule, analysisMode: AnalysisMode): List<Finding> {
+private fun List<Finding>.filterSuppressedFindings(
+    rule: Rule,
+    analysisMode: AnalysisMode,
+    file: KtFile,
+): List<Finding> {
     val suppressors = buildSuppressors(rule, analysisMode)
-    return if (suppressors.isNotEmpty()) {
-        filter { finding -> !suppressors.any { suppressor -> suppressor.shouldSuppress(finding) } }
-    } else {
-        this
+    if (suppressors.isEmpty()) return this
+    val lightSuppressors by lazy(LazyThreadSafetyMode.NONE) { buildSuppressors(rule, AnalysisMode.Light) }
+    return filter { finding ->
+        val applicableSuppressors =
+            if (finding.entity.ktElement.containingKtFile == file) suppressors else lightSuppressors
+        applicableSuppressors.none { suppressor -> suppressor.shouldSuppress(finding) }
     }
 }
 

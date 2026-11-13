@@ -134,7 +134,9 @@ class DetektPlugin : Plugin<Project> {
 
             configuration.defaultDependencies { dependencySet ->
                 val version = extension.toolVersion.get()
-                dependencySet.add(project.dependencies.create("dev.detekt:detekt-cli:$version"))
+                dependencySet.add(
+                    project.dependencies.create("io.github.davidarthurcole.daetekt:detekt-cli:$version")
+                )
             }
 
             configuration.attributes {

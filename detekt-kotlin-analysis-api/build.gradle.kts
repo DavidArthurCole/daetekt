@@ -19,13 +19,7 @@ dependencies {
     aaDependency(libs.kotlin.analysisApiPlatformInterface) { isTransitive = false }
     aaDependency(libs.kotlin.lowLevelApiFir) { isTransitive = false }
     aaDependency(libs.kotlin.symbolLightClasses) { isTransitive = false }
-    runtimeOnly(libs.caffeine) {
-        attributes {
-            // https://github.com/ben-manes/caffeine/issues/716
-            // Remove on upgrade to Caffeine 3.x or if https://youtrack.jetbrains.com/issue/KT-73751 is fixed
-            attribute(Bundling.BUNDLING_ATTRIBUTE, named(Bundling.EXTERNAL))
-        }
-    }
+    runtimeOnly(libs.caffeine)
     runtimeOnly(libs.kotlinx.serializationCore)
     runtimeOnly(libs.kotlinx.coroutinesCore.intellij)
 }
@@ -72,8 +66,11 @@ val sourcesJar = tasks.register<Jar>("sourcesJar") {
 }
 
 java {
-    targetCompatibility = JavaVersion.VERSION_17
     withSourcesJar()
+}
+
+tasks.withType<JavaCompile>().configureEach {
+    options.release = libs.versions.jvmTarget.get().toInt()
 }
 
 shadow {

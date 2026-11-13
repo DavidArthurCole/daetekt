@@ -3,7 +3,7 @@ import dev.detekt.gradle.report.ReportMergeTask
 
 plugins {
     id("releasing")
-    id("dev.detekt")
+    id("io.github.davidarthurcole.daetekt")
     id("org.jetbrains.dokka") version "2.3.0"
 }
 
@@ -14,7 +14,7 @@ dependencies {
     dokka(projects.detektTestAssertj)
     dokka(projects.detektTestUtils)
     dokka(projects.detektTooling)
-    dokka("dev.detekt:detekt-gradle-plugin")
+    dokka("io.github.davidarthurcole.daetekt:detekt-gradle-plugin")
 }
 
 dokka {
@@ -46,10 +46,10 @@ val detektReportMergeSarif = tasks.register<ReportMergeTask>("detektReportMergeS
 }
 
 allprojects {
-    group = "dev.detekt"
+    group = "io.github.davidarthurcole.daetekt"
     version = Versions.currentOrSnapshot()
 
-    apply(plugin = "dev.detekt")
+    apply(plugin = "io.github.davidarthurcole.daetekt")
 
     detekt {
         buildUponDefaultConfig = true

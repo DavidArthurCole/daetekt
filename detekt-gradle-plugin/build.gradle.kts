@@ -23,10 +23,11 @@ plugins {
     id("com.github.gmazzo.buildconfig") version "6.1.2"
 }
 
-group = "dev.detekt"
+group = "io.github.davidarthurcole.daetekt"
 version = Versions.currentOrSnapshot()
 
 buildConfig {
+    packageName("dev.detekt.detekt_gradle_plugin")
     buildConfigField("DETEKT_VERSION", project.version.toString())
     buildConfigField("DETEKT_COMPILER_PLUGIN_VERSION", project.version.toString())
     buildConfigField("KOTLIN_IMPLEMENTATION_VERSION", libs.versions.kotlin.analysisApi.get())
@@ -80,6 +81,16 @@ testing {
                         val isAndroidSdkInstalled = providers.environmentVariable("ANDROID_SDK_ROOT").isPresent ||
                             providers.environmentVariable("ANDROID_HOME").isPresent
                         inputs.property("isAndroidSdkInstalled", isAndroidSdkInstalled).optional(true)
+                    }
+                }
+                @Suppress("MagicNumber")
+                setOf(17, 21, 25).forEach {
+                    register("functionalTestJvm$it") {
+                        testTask {
+                            javaLauncher = javaToolchains.launcherFor {
+                                languageVersion = JavaLanguageVersion.of(it)
+                            }
+                        }
                     }
                 }
             }
@@ -166,7 +177,7 @@ gradlePlugin {
     website = "https://detekt.dev"
     vcsUrl = "https://github.com/detekt/detekt"
     plugins {
-        register("dev.detekt.gradle.base") {
+        register("io.github.davidarthurcole.daetekt.base") {
             displayName = "Static code analysis for Kotlin - Base Plugin"
             description = "Static code analysis for Kotlin - Base Plugin"
             implementationClass = "dev.detekt.gradle.plugin.DetektBasePlugin"
@@ -174,7 +185,7 @@ gradlePlugin {
                 features.configurationCache = true
             }
         }
-        register("dev.detekt") {
+        register("io.github.davidarthurcole.daetekt") {
             displayName = "Static code analysis for Kotlin"
             description = "Static code analysis for Kotlin"
             implementationClass = "dev.detekt.gradle.plugin.DetektPlugin"
@@ -274,7 +285,7 @@ tasks {
 
     check {
         dependsOn(
-            testing.suites.named("functionalTest"),
+            "functionalTest",
             testing.suites.named("functionalTestMinSupportedGradle"),
         )
     }

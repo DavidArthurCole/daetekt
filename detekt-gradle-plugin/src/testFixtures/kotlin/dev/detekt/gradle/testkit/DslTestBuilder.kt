@@ -90,7 +90,7 @@ private class GroovyBuilder : DslTestBuilder() {
     override val gradlePlugins = """
         plugins {
             id 'org.jetbrains.kotlin.jvm'
-            id "dev.detekt"
+            id "io.github.davidarthurcole.daetekt"
         }
     """.trimIndent()
 
@@ -106,7 +106,7 @@ private class GroovyBuilder : DslTestBuilder() {
 
     @Language("gradle")
     override val gradleSubprojectsApplyPlugins = """
-        apply plugin: "dev.detekt"
+        apply plugin: "io.github.davidarthurcole.daetekt"
     """.trimIndent()
 
     override fun toString() = "build.gradle"
@@ -119,7 +119,7 @@ private class KotlinBuilder : DslTestBuilder() {
     override val gradlePlugins = """
         plugins {
             kotlin("jvm")
-            id("dev.detekt")
+            id("io.github.davidarthurcole.daetekt")
         }
     """.trimIndent()
 
@@ -135,7 +135,7 @@ private class KotlinBuilder : DslTestBuilder() {
 
     @Language("gradle.kts")
     override val gradleSubprojectsApplyPlugins = """
-        plugins.apply("dev.detekt")
+        plugins.apply("io.github.davidarthurcole.daetekt")
     """.trimIndent()
 
     override fun toString() = "build.gradle.kts"

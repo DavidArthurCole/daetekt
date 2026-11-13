@@ -22,7 +22,7 @@ class DetektBasePluginSpec {
             buildFileName = "build.gradle.kts",
             mainBuildFileContent = """
                 plugins {
-                    id("dev.detekt")
+                    id("io.github.davidarthurcole.daetekt")
                     kotlin("jvm")
                 }
                 
@@ -55,7 +55,7 @@ class DetektBasePluginSpec {
             buildFileName = "build.gradle.kts",
             mainBuildFileContent = """
                 plugins {
-                    id("dev.detekt")
+                    id("io.github.davidarthurcole.daetekt")
                     id("com.android.library")
                     kotlin("android")
                 }
@@ -103,7 +103,7 @@ class DetektBasePluginSpec {
             mainBuildFileContent = """
                 plugins {
                     id("com.android.application")
-                    id("dev.detekt")
+                    id("io.github.davidarthurcole.daetekt")
                 }
 
                 repositories {
@@ -145,7 +145,7 @@ class DetektBasePluginSpec {
             buildFileName = "build.gradle.kts",
             mainBuildFileContent = """
                 plugins {
-                    id("dev.detekt")
+                    id("io.github.davidarthurcole.daetekt")
                     kotlin("jvm") // This plugin has type KotlinBasePlugin
                 }
             
@@ -192,7 +192,7 @@ class DetektBasePluginSpec {
             buildFileName = "build.gradle.kts",
             mainBuildFileContent = """
                 plugins {
-                    id("dev.detekt")
+                    id("io.github.davidarthurcole.daetekt")
                     kotlin("multiplatform")
                     id("com.android.kotlin.multiplatform.library")
                 }

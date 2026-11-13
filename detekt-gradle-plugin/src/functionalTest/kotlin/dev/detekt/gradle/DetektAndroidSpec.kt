@@ -719,7 +719,7 @@ private val APP_PLUGIN_BLOCK = """
     plugins {
         id("com.android.application")
         kotlin("android")
-        id("dev.detekt")
+        id("io.github.davidarthurcole.daetekt")
     }
     kotlin {
         compilerOptions {
@@ -733,7 +733,7 @@ private val LIB_PLUGIN_BLOCK = """
     plugins {
         id("com.android.library")
         kotlin("android")
-        id("dev.detekt")
+        id("io.github.davidarthurcole.daetekt")
     }
     kotlin {
         compilerOptions {
@@ -841,7 +841,7 @@ private val SAMPLE_ACTIVITY_USING_VIEW_BINDING = """
 private val KOTLIN_ONLY_LIB_PLUGIN_BLOCK = """
     plugins {
         kotlin("jvm")
-        id("dev.detekt")
+        id("io.github.davidarthurcole.daetekt")
     }
 
     java {

@@ -1,6 +1,6 @@
 plugins {
     id("org.jetbrains.kotlin.jvm")
-    id("dev.detekt")
+    id("io.github.davidarthurcole.daetekt")
 }
 
 repositories {

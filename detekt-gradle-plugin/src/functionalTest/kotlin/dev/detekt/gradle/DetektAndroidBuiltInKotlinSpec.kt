@@ -262,7 +262,7 @@ class DetektAndroidBuiltInKotlinSpec {
                         """
                             plugins {
                                 kotlin("jvm")
-                                id("dev.detekt")
+                                id("io.github.davidarthurcole.daetekt")
                             }
         
                             java {
@@ -636,6 +636,7 @@ class DetektAndroidBuiltInKotlinSpec {
                 fun libDetektMain() {
                     gradleRunner.runTasksAndCheckResult(":app:detektMain") { buildResult ->
                         assertThat(buildResult.output).doesNotContain("UnreachableCode")
+                        assertThat(buildResult.output).doesNotContain("compiler errors found during analysis")
                     }
                 }
 
@@ -644,6 +645,50 @@ class DetektAndroidBuiltInKotlinSpec {
                 fun libDetektTest() {
                     gradleRunner.runTasksAndCheckResult(":app:detektTest") { buildResult ->
                         assertThat(buildResult.output).doesNotContain("UnreachableCode")
+                        assertThat(buildResult.output).doesNotContain("compiler errors found during analysis")
+                    }
+                }
+            }
+
+            @Nested
+            inner class `analysis classpath includes generated sources` {
+                val projectLayout = ProjectLayout(
+                    numberOfSourceFilesInRootPerSourceDir = 0,
+                ).apply {
+                    addSubmodule(
+                        name = "app",
+                        numberOfSourceFilesPerSourceDir = 0,
+                        numberOfFindings = 0,
+                        buildFileContent = joinGradleBlocks(
+                            appPluginBlock(pluginApplied),
+                            ANDROID_BLOCK_WITH_GENERATED_SOURCES,
+                            DETEKT_BASELINE_BLOCK,
+                        ),
+                        srcDirs = listOf("src/main/java"),
+                    )
+                }
+                val gradleRunner = createGradleRunnerAndSetupProject(projectLayout, propertyEnabled, dryRun = false)
+                    .also {
+                        it.projectFile("app/src/main/java").mkdirs()
+                        it.projectFile("app/src/main/res/values").mkdirs()
+                        it.writeProjectFile("app/src/main/AndroidManifest.xml", manifestContent)
+                        it.writeProjectFile("app/src/main/res/values/strings.xml", SAMPLE_STRING_RESOURCE)
+                        it.writeProjectFile("app/src/main/java/Sample.kt", SAMPLE_USING_GENERATED_SOURCES)
+                    }
+
+                @Test
+                @DisplayName("task :app:detektMain resolves generated BuildConfig")
+                fun detektMainResolvesGeneratedClasses() {
+                    gradleRunner.runTasksAndCheckResult(":app:detektMain", "--rerun-tasks") { buildResult ->
+                        assertThat(buildResult.output).doesNotContain("compiler errors found during analysis")
+                    }
+                }
+
+                @Test
+                @DisplayName("task :app:detektBaselineMain resolves generated BuildConfig")
+                fun detektBaselineMainResolvesGeneratedClasses() {
+                    gradleRunner.runTasksAndCheckResult(":app:detektBaselineMain", "--rerun-tasks") { buildResult ->
+                        assertThat(buildResult.output).doesNotContain("compiler errors found during analysis")
                     }
                 }
             }
@@ -793,10 +838,52 @@ private val SAMPLE_ACTIVITY_USING_VIEW_BINDING = """
     
 """.trimIndent() // Last line to prevent NewLineAtEndOfFile.
 
+@Language("gradle.kts")
+private val ANDROID_BLOCK_WITH_GENERATED_SOURCES = """
+    android {
+        compileSdk = 34
+        namespace = "dev.detekt.app"
+        defaultConfig {
+            applicationId = "dev.detekt.app"
+            minSdk = 24
+        }
+        buildFeatures {
+            buildConfig = true
+        }
+    }
+""".trimIndent()
+
+@Language("gradle.kts")
+private val DETEKT_BASELINE_BLOCK = """
+    detekt {
+        baseline = file("build/detekt-baseline.xml")
+    }
+""".trimIndent()
+
+@Language("xml")
+private val SAMPLE_STRING_RESOURCE = """
+    <?xml version="1.0" encoding="utf-8"?>
+    <resources>
+        <string name="app_name">detekt</string>
+    </resources>
+""".trimIndent()
+
+@Language("kotlin")
+private val SAMPLE_USING_GENERATED_SOURCES = """
+    import dev.detekt.app.BuildConfig
+    import dev.detekt.app.R
+
+    object Sample {
+        fun isDebug(): Boolean = BuildConfig.DEBUG
+        fun appNameRes(): Int = R.string.app_name
+    }
+
+""".trimIndent() // Last line to prevent NewLineAtEndOfFile.
+
 private fun appPluginBlock(applyBuiltInPlugin: Boolean) =
     """
         plugins {
-            id("dev.detekt")
+            id("io.github.davidarthurcole.daetekt")
             id("com.android.application")
             ${if (applyBuiltInPlugin) """id("com.android.built-in-kotlin")""" else ""}
         }
@@ -805,7 +892,7 @@ private fun appPluginBlock(applyBuiltInPlugin: Boolean) =
 private fun libPluginBlock(applyBuiltInPlugin: Boolean) =
     """
         plugins {
-            id("dev.detekt")
+            id("io.github.davidarthurcole.daetekt")
             ${if (applyBuiltInPlugin) """id("com.android.built-in-kotlin")""" else ""}
             id("com.android.library")
         }

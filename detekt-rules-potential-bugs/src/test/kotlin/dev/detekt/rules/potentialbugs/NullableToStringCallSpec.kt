@@ -9,11 +9,12 @@ import org.jetbrains.kotlin.config.ApiVersion
 import org.jetbrains.kotlin.config.LanguageVersion
 import org.jetbrains.kotlin.config.LanguageVersionSettings
 import org.jetbrains.kotlin.config.LanguageVersionSettingsImpl
+import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.params.ParameterizedTest
 import org.junit.jupiter.params.provider.MethodSource
 
-@KotlinCoreEnvironmentTest
+@KotlinCoreEnvironmentTest(additionalJavaSourcePaths = ["java"])
 class NullableToStringCallSpec(private val env: KotlinEnvironmentContainer) {
     private val subject = NullableToStringCall(Config.empty)
 
@@ -27,6 +28,31 @@ class NullableToStringCallSpec(private val env: KotlinEnvironmentContainer) {
         val actual = subject.lintWithContext(env, code)
         assertThat(actual).singleElement()
             .hasMessage("This call 'a.toString()' may return the string \"null\".")
+    }
+
+    @Test
+    fun `reports when a nullable toString is explicitly called on an implicit receiver`() {
+        val code = """
+            fun test(a: Any?) {
+                with(a) {
+                    toString()
+                }
+            }
+        """.trimIndent()
+        val actual = subject.lintWithContext(env, code)
+        assertThat(actual).singleElement()
+            .hasMessage("This call 'toString()' may return the string \"null\".")
+    }
+
+    @Test
+    fun `does not report a safe call toString on an unresolved receiver`() {
+        val code = """
+            fun test(project: Project): Boolean {
+                return project.property("verbose")?.toString().toBoolean()
+            }
+        """.trimIndent()
+        val actual = subject.lintWithContext(env, code, allowCompilationErrors = true)
+        assertThat(actual).isEmpty()
     }
 
     @Test
@@ -265,6 +291,39 @@ class NullableToStringCallSpec(private val env: KotlinEnvironmentContainer) {
             languageVersionSettings = languageVersionSettings,
         )
         assertThat(actual).isEmpty()
+    }
+
+    @Nested
+    @KotlinCoreEnvironmentTest(additionalJavaSourcePaths = ["java"])
+    inner class `Java sources`(val env: KotlinEnvironmentContainer) {
+        private val subject = NullableToStringCall(Config.empty)
+
+        @Test
+        fun `does not report when a platform type toString is called safely`() {
+            val code = """
+                import com.example.nullable_to_string.GradleProject
+
+                fun test(project: GradleProject): Boolean {
+                    val verbose = project.getProperty("verbose")?.toString()
+                    return project.getProperty("verbose")?.toString().toBoolean()
+                }
+            """.trimIndent()
+            val actual = subject.lintWithContext(env, code)
+            assertThat(actual).isEmpty()
+        }
+
+        @Test
+        fun `does not report when a platform type toString is called without safe call`() {
+            val code = """
+                import com.example.nullable_to_string.GradleProject
+
+                fun test(project: GradleProject) {
+                    val verbose = project.getProperty("verbose").toString()
+                }
+            """.trimIndent()
+            val actual = subject.lintWithContext(env, code)
+            assertThat(actual).isEmpty()
+        }
     }
 
     companion object {

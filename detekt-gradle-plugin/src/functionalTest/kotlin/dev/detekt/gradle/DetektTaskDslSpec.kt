@@ -532,7 +532,7 @@ class DetektTaskDslSpec {
 
         @Test
         fun `adds the custom detekt version to the dependencies`() {
-            assertThat(result.output).contains("dev.detekt:detekt-cli:$customVersion")
+            assertThat(result.output).contains("io.github.davidarthurcole.daetekt:detekt-cli:$customVersion")
         }
     }
 

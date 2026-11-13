@@ -3,6 +3,7 @@ package dev.detekt.rules.style
 import com.intellij.openapi.util.TextRange
 import com.intellij.psi.PsiElement
 import org.jetbrains.kotlin.lexer.KtTokens
+import org.jetbrains.kotlin.psi.KtAnnotatedExpression
 import org.jetbrains.kotlin.psi.KtBinaryExpression
 import org.jetbrains.kotlin.psi.KtDotQualifiedExpression
 import org.jetbrains.kotlin.psi.KtExpression
@@ -50,7 +51,7 @@ inline fun <reified T : KtExpression> KtExpression.isGuardClause(): Boolean {
 }
 
 fun <T : KtExpression> KtExpression.isIfConditionGuardClause(descendantExpr: T): Boolean {
-    val ifExpr = this as? KtIfExpression ?: return false
+    val ifExpr = ((this as? KtAnnotatedExpression)?.baseExpression ?: this) as? KtIfExpression ?: return false
     return ifExpr.`else` == null &&
         descendantExpr === ifExpr.then?.lastBlockStatementOrThis()
 }

@@ -141,6 +141,34 @@ class ReturnCountSpec {
     }
 
     @Nested
+    inner class `a file with an annotated if condition guard clause between guard clauses` {
+        private val code = """
+            fun test(x: Int): Int {
+                if (x < 1) return 1
+                @Suppress("DEPRECATION")
+                if (x < 2) return 2
+                if (x < 3) return 3
+                if (x < 4) return 4
+                return 6
+            }
+        """.trimIndent()
+
+        @Test
+        fun `should not get flagged for annotated guard clauses`() {
+            val findings = ReturnCount(TestConfig(EXCLUDE_GUARD_CLAUSES to true))
+                .lint(code)
+            assertThat(findings).isEmpty()
+        }
+
+        @Test
+        fun `should get flagged without guard clauses`() {
+            val findings = ReturnCount(TestConfig(EXCLUDE_GUARD_CLAUSES to false))
+                .lint(code)
+            assertThat(findings).hasSize(1)
+        }
+    }
+
+    @Nested
     inner class `a file with 2 returns and an if condition guard clause which is not the first statement` {
         private val code = """
             fun test(x: Int): Int {

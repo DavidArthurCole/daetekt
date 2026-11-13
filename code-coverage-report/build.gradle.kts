@@ -38,7 +38,7 @@ reporting {
 jacoco.toolVersion = libs.versions.jacoco.get()
 
 dependencies {
-    jacocoAggregation("dev.detekt:detekt-gradle-plugin")
+    jacocoAggregation("io.github.davidarthurcole.daetekt:detekt-gradle-plugin")
     jacocoAggregation(projects.detektApi)
     jacocoAggregation(projects.detektCli)
     jacocoAggregation(projects.detektCore)
